@@ -83,10 +83,10 @@ pub struct ModeSense10Command {
     #[pkd(7, 0, 3, 3)]
     pub subpage_code: u8,
 
-    #[pkd(7, 0, 8, 9)]
+    #[pkd(7, 0, 7, 8)]
     pub allocation_length: u16,
 
-    #[pkd(7, 0, 10, 10)]
+    #[pkd(7, 0, 9, 9)]
     pub control: Control,
 }
 impl ParsePackedStruct for ModeSense10Command {}
