@@ -36,3 +36,15 @@ impl From<UsbError> for Error {
         Error::BulkOnlyTransportError(e.into())
     }
 }
+
+impl defmt::Format for Error {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            Error::UnhandledOpCode => defmt::write!(f, "UnhandledOpCode"),
+            Error::InsufficientDataForCommand => defmt::write!(f, "InsufficientDataForCommand"),
+            Error::PackingError(_) => defmt::write!(f, "PackingError"),
+            Error::BlockDeviceError(_) => defmt::write!(f, "BlockDeviceError"),
+            Error::BulkOnlyTransportError(_) => defmt::write!(f, "BulkOnlyTransportError"),
+        }
+    }
+}

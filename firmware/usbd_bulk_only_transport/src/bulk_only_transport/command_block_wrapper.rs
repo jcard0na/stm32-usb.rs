@@ -1,6 +1,7 @@
 use packing::Packed;
 
 use super::Direction;
+use defmt::Format;
 
 /// Signature that identifies this packet as CBW
 const SIGNATURE: u32 = 0x43425355;
@@ -9,7 +10,7 @@ const SIGNATURE_1: u8 = ((SIGNATURE >> 8) & 0xFF) as u8;
 const SIGNATURE_2: u8 = ((SIGNATURE >> 16) & 0xFF) as u8;
 const SIGNATURE_3: u8 = ((SIGNATURE >> 24) & 0xFF) as u8;
 
-#[derive(Packed, Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Packed, Clone, Copy, Eq, PartialEq, Debug, Format)]
 #[packed(little_endian, lsb0)]
 /// A wrapper that identifies a command sent from the host to the
 /// device on the OUT endpoint. Describes the data transfer IN or OUT

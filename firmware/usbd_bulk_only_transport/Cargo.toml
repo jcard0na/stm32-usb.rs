@@ -20,6 +20,8 @@ typenum               = "1.11.2"
 itm_logger            = { version = "0.1.0", default-features = false }
 usbd_mass_storage     = { version = "0.1.0", path = "../usbd_mass_storage" }
 packing               = { version = "0.2.0", path = "../packing/packing" }
+defmt = "0.3.5"
+defmt-rtt = "0.4.0"
 
 [features]
 trace-bot-headers = []

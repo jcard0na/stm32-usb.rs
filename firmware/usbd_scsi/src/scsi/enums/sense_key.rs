@@ -48,3 +48,9 @@ impl Default for SenseKey {
         SenseKey::NoSense
     }
 }
+
+impl defmt::Format for SenseKey {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(f, "Some Error");
+    }
+}

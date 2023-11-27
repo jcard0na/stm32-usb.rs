@@ -72,3 +72,27 @@ where
     }
     Ok(T::parse(&cbw.data)?)
 }
+
+impl defmt::Format for Command {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            Command::None => defmt::write!(f,"None"),
+            Command::Inquiry(_) => defmt::write!(f,"Inquiry"),
+            Command::TestUnitReady(_) => defmt::write!(f,"TestUnitReady"),
+            Command::ReadCapacity(_) => defmt::write!(f,"ReadCapacity"),
+            Command::ModeSense(_) => defmt::write!(f,"ModeSense"),
+            Command::PreventAllowMediumRemoval(_) => defmt::write!(f,"PreventAllowMediumRemoval"),
+            Command::RequestSense(_) => defmt::write!(f,"RequestSense"),
+            Command::Read(_) => defmt::write!(f,"Read"),
+            Command::Write(_) => defmt::write!(f,"Write"),
+            Command::Format(_) => defmt::write!(f,"Format"),
+            Command::SendDiagnostic(_) => defmt::write!(f,"SenseDiagnostic"),
+            Command::ReportLuns(_) => defmt::write!(f,"ReportLuns"),
+            Command::ModeSelect(_) => defmt::write!(f,"ModeSelect"),
+            Command::StartStopUnit(_) => defmt::write!(f,"StartStopUnit"),
+            Command::ReadFormatCapacities(_) => defmt::write!(f,"ReadFormatCapacities"),
+            Command::Verify(_) => defmt::write!(f,"Verify"),
+            Command::SynchronizeCache(_) => defmt::write!(f,"SynchronizeCache"),
+        }
+    }
+}

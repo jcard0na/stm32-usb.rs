@@ -37,6 +37,14 @@ impl ModeParameterHeader6 {
             PageCode::CachingModePage => CachingModePage::BYTES as u8,
         };
     }
+
+    pub fn increase_length_for_block_descriptor(&mut self) {
+        self.mode_data_length += BlockDescriptor::BYTES as u8;
+
+        // The BLOCK DESCRIPTOR LENGTH field contains the length in bytes of all the block descriptors.
+        // It is equal to the number of block descriptors times eight if the LONGLBA bit is set to zero
+        self.block_descriptor_length = BlockDescriptor::BYTES as u8;
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
@@ -60,7 +68,7 @@ pub struct ModeParameterHeader10 {
 impl Default for ModeParameterHeader10 {
     fn default() -> Self {
         Self {
-            mode_data_length: Self::BYTES as u16 - 2,
+            mode_data_length: Self::BYTES as u16,
             medium_type: Default::default(),
             device_specific_parameter: Default::default(),
             long_lba: Default::default(),
@@ -120,6 +128,30 @@ impl Default for CachingModePage {
             page_length: Self::BYTES as u8,
             write_cache_enabled: false,
             read_cache_disable: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[packed(big_endian, lsb0)]
+pub struct BlockDescriptor{
+    #[pkd(7, 0, 0, 3)]
+    pub number_of_blocks: u32,
+
+    #[pkd(7, 0, 4, 4)]
+    pub reserved: u8,
+
+    #[pkd(7, 0, 5, 7)]
+    pub block_size: u32,
+}
+
+impl Default for BlockDescriptor {
+    fn default() -> Self {
+        Self {
+            // 16 MB = 4096 blocks of size 4096
+            number_of_blocks: 4096,
+            reserved: 0, 
+            block_size: 4096,
         }
     }
 }

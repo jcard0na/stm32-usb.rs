@@ -1,31 +1,16 @@
-use packing::{
-    Packed,
-    PackedSize,
-    Error as PackingError,
-};
+use packing::{Error as PackingError, Packed, PackedSize};
+use uf2_block::Block;
 use usb_device::class_prelude::*;
 use usb_device::Result as UsbResult;
 
-use usbd_bulk_only_transport::{
-    BulkOnlyTransport,
-    Error as BulkOnlyTransportError,
-    TransferState,
-};
+use usbd_bulk_only_transport::{BulkOnlyTransport, Error as BulkOnlyTransportError, TransferState};
 
 use usbd_mass_storage::InterfaceSubclass;
 
 use crate::{
+    block_device::{BlockDevice, BlockDeviceError},
     logging::*,
-    block_device::{
-        BlockDevice,
-        BlockDeviceError,
-    },
-    scsi::{
-        commands::*,
-        responses::*,
-        enums::*,
-        Error,
-    },
+    scsi::{commands::*, enums::*, responses::*, Error},
 };
 
 enum CommandState {
@@ -54,20 +39,20 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
     ///
     /// `block_device` provides reading and writing of blocks to the underlying filesystem
     ///
-    /// `vendor_identification` is an ASCII string that forms part of the SCSI inquiry response. 
+    /// `vendor_identification` is an ASCII string that forms part of the SCSI inquiry response.
     ///      Should come from [t10](https://www.t10.org/lists/2vid.htm). Any semi-unique non-blank
     ///      string should work fine for local development. Panics if > 8 characters are supplied.
     ///
-    /// `product_identification` is an ASCII string that forms part of the SCSI inquiry response. 
+    /// `product_identification` is an ASCII string that forms part of the SCSI inquiry response.
     ///      Vendor (probably you...) defined so pick whatever you want. Panics if > 16 characters
     ///      are supplied.
     ///
-    /// `product_revision_level` is an ASCII string that forms part of the SCSI inquiry response. 
+    /// `product_revision_level` is an ASCII string that forms part of the SCSI inquiry response.
     ///      Vendor (probably you...) defined so pick whatever you want. Typically a version number.
     ///      Panics if > 4 characters are supplied.
-    pub fn new<V: AsRef<[u8]>, P: AsRef<[u8]>, R: AsRef<[u8]>> (
-        alloc: &UsbBusAllocator<B>, 
-        max_packet_size: u16, 
+    pub fn new<V: AsRef<[u8]>, P: AsRef<[u8]>, R: AsRef<[u8]>>(
+        alloc: &UsbBusAllocator<B>,
+        max_packet_size: u16,
         block_device: BD,
         vendor_identification: V,
         product_identification: P,
@@ -78,13 +63,13 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
         inquiry_response.set_product_identification(product_identification);
         inquiry_response.set_product_revision_level(product_revision_level);
 
-        //TODO: This is reasonable for FAT but not FAT32 or others. BOT buffer should probably be 
-        //configurable from here, perhaps passing in BD::BLOCK_BYTES.max(BOT::MIN_BUFFER) or something 
+        //TODO: This is reasonable for FAT but not FAT32 or others. BOT buffer should probably be
+        //configurable from here, perhaps passing in BD::BLOCK_BYTES.max(BOT::MIN_BUFFER) or something
         assert!(BD::BLOCK_BYTES <= BulkOnlyTransport::<B>::BUFFER_BYTES);
         Scsi {
             inner: BulkOnlyTransport::new(
-                alloc, 
-                max_packet_size, 
+                alloc,
+                max_packet_size,
                 InterfaceSubclass::ScsiTransparentCommandSet,
                 0,
             ),
@@ -131,7 +116,7 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 let buf = self.inner.take_buffer_space(InquiryResponse::BYTES)?;
                 self.inquiry_response.pack(buf)?;
                 Done
-            },
+            }
 
             // Testing if the unit is ready. Responding CommandOk is sufficient for this request
             // TODO: There's a situation where after enough errors the host will keep sending TUR
@@ -145,35 +130,44 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
             Command::PreventAllowMediumRemoval(_) => Done,
 
             // Read the capacity and block size of the device
-            Command::ReadCapacity(_)  => {
+            Command::ReadCapacity(_) => {
                 let max_lba = self.block_device.max_lba();
                 let block_size = BD::BLOCK_BYTES as u32;
                 let cap = ReadCapacity10Response {
                     max_lba,
                     block_size,
                 };
-                
-                let buf = self.inner.take_buffer_space(ReadCapacity10Response::BYTES)?;
+
+                let buf = self
+                    .inner
+                    .take_buffer_space(ReadCapacity10Response::BYTES)?;
                 cap.pack(buf)?;
                 Done
-            },
+            }
 
             // Check the readonly and cache (potentially other info) about the device
-            Command::ModeSense(ModeSenseXCommand { command_length: CommandLength::C6, page_control: PageControl::CurrentValues })  => {
+            Command::ModeSense(ModeSenseXCommand {
+                command_length: CommandLength::C6,
+                page_control: PageControl::CurrentValues,
+            }) => {
                 let mut header = ModeParameterHeader6::default();
-                header.increase_length_for_page(PageCode::CachingModePage);
-                
+                // header.increase_length_for_page(PageCode::CachingModePage);
+                header.increase_length_for_block_descriptor();
+
                 // Default is both caches disabled
-                let cache_page = CachingModePage::default();
+                // let cache_page = CachingModePage::default();
+                let block_descriptor = BlockDescriptor::default();
 
                 let buf = self.inner.take_buffer_space(
-                    ModeParameterHeader6::BYTES + CachingModePage::BYTES
-                )?;   
+                    ModeParameterHeader6::BYTES + BlockDescriptor::BYTES,
+                )?;
 
                 header.pack(&mut buf[..ModeParameterHeader6::BYTES])?;
-                cache_page.pack(&mut buf[ModeParameterHeader6::BYTES..])?;
+                // cache_page.pack(&mut buf[ModeParameterHeader6::BYTES..ModeParameterHeader6::BYTES+CachingModePage::BYTES])?;
+                block_descriptor.pack(&mut buf[ModeParameterHeader6::BYTES..])?;
+
                 Done
-            },
+            }
 
             // Request sense is how more info about the state of the device is returned
             // Returning CommandError will cause the host to perform a request sense
@@ -182,7 +176,7 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 let buf = self.inner.take_buffer_space(RequestSenseResponse::BYTES)?;
                 self.request_sense_response.pack(buf)?;
                 Done
-            },
+            }
 
             // Read `transfer_length` blocks from `lba`
             Command::Read(r) => {
@@ -192,10 +186,15 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                     self.lba_end = r.lba + r.transfer_length - 1;
                 }
 
-                trace_scsi_fs!("FS> Read; new: {}, lba: 0x{:X?}, lba_end: 0x{:X?}, done: {}",
-                    new_command, self.lba, self.lba_end, self.lba == self.lba_end);
+                trace_scsi_fs!(
+                    "FS> Read; new: {}, lba: 0x{:X}, lba_end: 0x{:X}, done: {}",
+                    new_command,
+                    self.lba,
+                    self.lba_end,
+                    self.lba == self.lba_end
+                );
 
-                // We only get here if the buffer is empty 
+                // We only get here if the buffer is empty
                 let buf = self.inner.take_buffer_space(BD::BLOCK_BYTES)?;
                 self.block_device.read_block(self.lba, buf)?;
                 self.lba += 1;
@@ -205,7 +204,7 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 } else {
                     Done
                 }
-            },
+            }
 
             // Write `transfer_length` blocks from `lba`
             Command::Write(w) => {
@@ -215,16 +214,28 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                     self.lba_end = w.lba + w.transfer_length - 1;
                 }
 
-                trace_scsi_fs!("FS> Write; new: {}, lba: 0x{:X?}, lba_end: 0x{:X?}, done: {}",
-                    new_command, self.lba, self.lba_end, self.lba == self.lba_end);
+                trace_scsi_fs!(
+                    "FS> Write; new: {}, lba: 0x{:X}, lba_end: 0x{:X}, done: {}",
+                    new_command,
+                    self.lba,
+                    self.lba_end,
+                    self.lba == self.lba_end
+                );
 
                 let len = match self.inner.transfer_state() {
-                    TransferState::ReceivingDataFromHost { done: true, full: false, bytes_available: b } => b,
+                    TransferState::ReceivingDataFromHost {
+                        done: true,
+                        full: false,
+                        bytes_available: b,
+                    } => b,
                     // TODO: Does this ever happen?
                     _ => BD::BLOCK_BYTES,
                 };
 
-                let buf = self.inner.take_buffered_data(len, false).expect("Buffer should have enough data");
+                let buf = self
+                    .inner
+                    .take_buffered_data(len, false)
+                    .expect("Buffer should have enough data");
                 self.block_device.write_block(self.lba, buf)?;
                 self.lba += 1;
 
@@ -233,6 +244,16 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 } else {
                     Done
                 }
+            }
+
+            Command::ModeSelect(_) => {
+                defmt::error!("Mode Select not yet implemented");
+                Done
+            },
+
+            Command::Format(_) => {
+                defmt::error!("Format not yet implemented");
+                Done
             },
 
             _ => Err(Error::UnhandledOpCode)?,
@@ -241,23 +262,17 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
 
     fn receive_command(&mut self) -> Result<(), Error> {
         let transfer_state = self.inner.transfer_state();
-        // These calls all assume only a single block will fit in the buffer which 
+        // These calls all assume only a single block will fit in the buffer which
         // is true here because we configure BOT that way but we could make the inner
         // buffer length a multiple of BLOCK_SIZE and queue up more than one block
         // at a time. I don't know if there's any benefit to that but the option is there
         let skip = match transfer_state {
-            TransferState::ReceivingDataFromHost { full, done, .. } => {
-                !(full || done)
-            },
-            TransferState::SendingDataToHost { empty, .. } => {
-                !empty
-            },
+            TransferState::ReceivingDataFromHost { full, done, .. } => !(full || done),
+            TransferState::SendingDataToHost { empty, .. } => !empty,
             // We still need to check if the buffer is empty because if a CSW is being sent
             // we won't be able to grab a full block buffer if the next command happens to be
             // a Read
-            TransferState::NotTransferring { empty, .. } => {
-                !empty
-            }
+            TransferState::NotTransferring { empty, .. } => !empty,
         };
 
         if skip {
@@ -275,16 +290,16 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
 
                 // Reset sense code to good
                 self.request_sense_response.reset_status();
-            },
+            }
             // WouldBlock error is handled the same as ongoing (i.e. do nothing)
-            Ok(CommandState::None) |
-            Ok(CommandState::Ongoing) |
-            Err(Error::BulkOnlyTransportError(
-                BulkOnlyTransportError::UsbError(
-                    UsbError::WouldBlock))) => {
+            Ok(CommandState::None)
+            | Ok(CommandState::Ongoing)
+            | Err(Error::BulkOnlyTransportError(BulkOnlyTransportError::UsbError(
+                UsbError::WouldBlock,
+            ))) => {
                 // No command, command is ongoing or we couldn't get a buffer/some other WouldBlock issue
                 // Do nothing
-            },
+            }
             Err(e) => {
                 // Command failed, send CommandErr
                 self.inner.send_command_error()?;
@@ -298,7 +313,7 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
 
                 // Return the error to the caller so it can get logged
                 Err(e)?;
-            },
+            }
         }
 
         Ok(())
@@ -307,10 +322,10 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
     fn map_error_to_sense_data(&mut self, err: &Error) {
         let (sense_key, additional_sense_code) = match err {
             Error::UnhandledOpCode => (
-                 SenseKey::IllegalRequest,
-                 AdditionalSenseCode::InvalidCommandOperationCode,
+                SenseKey::IllegalRequest,
+                AdditionalSenseCode::InvalidCommandOperationCode,
             ),
-            
+
             Error::InsufficientDataForCommand => (
                 SenseKey::IllegalRequest,
                 // Closest thing I could find. Some sources suggest OS does very little with ASC/ASCQ and it's
@@ -318,9 +333,11 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 AdditionalSenseCode::InvalidPacketSize,
             ),
 
-            Error::PackingError(p) |
-            Error::BulkOnlyTransportError(BulkOnlyTransportError::PackingError(p)) => match p {
-                PackingError::InsufficientBytes => panic!("PackingError::InsufficientBytes: Logical error in program"),
+            Error::PackingError(p)
+            | Error::BulkOnlyTransportError(BulkOnlyTransportError::PackingError(p)) => match p {
+                PackingError::InsufficientBytes => {
+                    panic!("PackingError::InsufficientBytes: Logical error in program")
+                }
                 PackingError::Infallible(_) => unreachable!(),
                 PackingError::InvalidEnumDiscriminant => (
                     SenseKey::IllegalRequest,
@@ -333,14 +350,12 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 //TODO: split errors up more?
                 AdditionalSenseCode::NoAdditionalSenseInformation,
             ),
-            Error::BlockDeviceError(BlockDeviceError::WriteError) => (
-                SenseKey::MediumError,
-                AdditionalSenseCode::WriteError,
-            ),
-            Error::BlockDeviceError(BlockDeviceError::EraseError) => (
-                SenseKey::MediumError,
-                AdditionalSenseCode::EraseFailure,
-            ),
+            Error::BlockDeviceError(BlockDeviceError::WriteError) => {
+                (SenseKey::MediumError, AdditionalSenseCode::WriteError)
+            }
+            Error::BlockDeviceError(BlockDeviceError::EraseError) => {
+                (SenseKey::MediumError, AdditionalSenseCode::EraseFailure)
+            }
             Error::BlockDeviceError(BlockDeviceError::InvalidAddress) => (
                 SenseKey::IllegalRequest,
                 AdditionalSenseCode::LogicalBlockAddressOutOfRange,
@@ -359,33 +374,28 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
             ),
         };
 
-        info!("SENSE: {:?}, ASC: {} {}", sense_key, additional_sense_code.asc(), additional_sense_code.ascq());
+        defmt::info!(
+            "SENSE: {:?}, ASC: {} {}",
+            sense_key,
+            additional_sense_code.asc(),
+            additional_sense_code.ascq()
+        );
         self.request_sense_response.sense_key = sense_key;
         self.request_sense_response.additional_sense_code = additional_sense_code;
     }
 
     fn update(&mut self) -> Result<(), Error> {
-
         // Send anything that's already queued
-        accept_would_block(
-            self.inner.write()
-                .map_err(|e| e.into())
-        )?;
+        accept_would_block(self.inner.write().map_err(|e| e.into()))?;
 
         // Read new data if available
-        accept_would_block(
-            self.inner.read()
-                .map_err(|e| e.into())
-        )?;
+        accept_would_block(self.inner.read().map_err(|e| e.into()))?;
 
         // Recieve and execute a command if one is available
         accept_would_block(self.receive_command())?;
 
         // Send anything we may have generated this go around
-        accept_would_block(
-            self.inner.write()
-                .map_err(|e| e.into())
-        )?;
+        accept_would_block(self.inner.write().map_err(|e| e.into()))?;
 
         Ok(())
     }
@@ -393,8 +403,11 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
 
 fn accept_would_block(r: Result<(), Error>) -> Result<(), Error> {
     match r {
-        Ok(_) | Err(Error::BulkOnlyTransportError(BulkOnlyTransportError::UsbError(UsbError::WouldBlock))) => Ok(()),
-        e => e
+        Ok(_)
+        | Err(Error::BulkOnlyTransportError(BulkOnlyTransportError::UsbError(
+            UsbError::WouldBlock,
+        ))) => Ok(()),
+        e => e,
     }
 }
 
@@ -403,7 +416,7 @@ impl<B: UsbBus, BD: BlockDevice> UsbClass<B> for Scsi<'_, B, BD> {
         self.inner.get_configuration_descriptors(writer)
     }
 
-    fn reset(&mut self) { 
+    fn reset(&mut self) {
         self.current_command = Command::None;
         self.request_sense_response.reset_status();
         self.lba = 0;
@@ -420,9 +433,9 @@ impl<B: UsbBus, BD: BlockDevice> UsbClass<B> for Scsi<'_, B, BD> {
         self.inner.control_out(xfer)
     }
 
-    fn poll(&mut self) { 
+    fn poll(&mut self) {
         if let Err(e) = self.update() {
-            error!("Error from Scsi::update: {:?}", e);
+            defmt::error!("Error from Scsi::update: {:?}", e);
         }
     }
 }

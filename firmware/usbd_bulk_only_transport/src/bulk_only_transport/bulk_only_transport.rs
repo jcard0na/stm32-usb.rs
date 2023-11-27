@@ -225,7 +225,7 @@ impl<B: UsbBus> BulkOnlyTransport<'_, B> {
                 .map_err(|_| Error::DataError);
             if cbw.is_err() {
                 let err = cbw.err().unwrap();
-                warn!("CBW unpack error: {:?}", err);
+                defmt::warn!("CBW unpack error: XXX"/*, err  */);
                 self.buffer_i = 0;
                 return Err(err);
             }
@@ -261,7 +261,7 @@ impl<B: UsbBus> BulkOnlyTransport<'_, B> {
     }
 
     fn transition_to_data(&mut self, cbw: CommandBlockWrapper) {
-        trace_bot_headers!("HEADER> CommandBlockWrapper: {:X?}", cbw);
+        trace_bot_headers!("HEADER> CommandBlockWrapper: {:X}", cbw);
         // Reset the positions in the buffer
         self.buffer_i = 0;
         self.data_i = 0;
@@ -440,7 +440,7 @@ impl<B: UsbBus> BulkOnlyTransport<'_, B> {
         self.buffer_i = CommandStatusWrapper::BYTES;
         self.data_i = 0;
         self.command_status_wrapper.data_residue = self.buffer_i as u32;
-        trace_bot_headers!("HEADER> CommandStatusWrapper buffered to send: {:X?}", self.command_status_wrapper);
+        trace_bot_headers!("HEADER> CommandStatusWrapper buffered to send: XXX", /* self.command_status_wrapper */);
     }
 
     fn end_data_transfer(&mut self) -> Result<(), Error> {
@@ -526,7 +526,7 @@ impl<B: UsbBus> BulkOnlyTransport<'_, B> {
             if self.command_status_wrapper.data_residue >= bytes {
                 self.command_status_wrapper.data_residue -= bytes;
             } else {
-                warn!("Read more bytes that CBW offered");
+                defmt::warn!("Read more bytes that CBW offered");
                 self.command_status_wrapper.data_residue = 0;
             }
             
@@ -609,7 +609,7 @@ impl<B: UsbBus> UsbClass<B> for BulkOnlyTransport<'_, B> {
         };
 
         if let Some(Err(e)) = handled_res {
-            error!("Error from ControlIn.accept: {:?}", e);
+            defmt::error!("Error from ControlIn.accept: {:?}", e);
         }
     }
 
