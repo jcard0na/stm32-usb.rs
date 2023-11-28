@@ -51,6 +51,22 @@ impl Default for SenseKey {
 
 impl defmt::Format for SenseKey {
     fn format(&self, f: defmt::Formatter) {
-        defmt::write!(f, "Some Error");
+        match self {
+            SenseKey::NoSense => defmt::write!(f,"NoSense"),
+            SenseKey::RecoveredError => defmt::write!(f,"RecoveredError"),
+            SenseKey::NotReady => defmt::write!(f,"NotReady"),
+            SenseKey::MediumError => defmt::write!(f,"MediumError"),
+            SenseKey::HardwareError => defmt::write!(f,"HardwareError"),
+            SenseKey::IllegalRequest => defmt::write!(f,"IllegalRequest"),
+            SenseKey::UnitAttention => defmt::write!(f,"UnitAttention"),
+            SenseKey::DataProtect => defmt::write!(f,"DataProtect"),
+            SenseKey::BlankCheck => defmt::write!(f,"BlankCheck"),
+            SenseKey::VendorSpecific => defmt::write!(f,"VendorSpecific"),
+            SenseKey::CopyAborted => defmt::write!(f,"CopyAborted"),
+            SenseKey::AbortedCommand => defmt::write!(f,"AbortedCommand"),
+            SenseKey::VolumeOverflow => defmt::write!(f,"VolumeOverflow"),
+            SenseKey::Miscompare => defmt::write!(f,"Miscompare"),
+            SenseKey::Completed => defmt::write!(f,"Completed"),
+        }
     }
 }
