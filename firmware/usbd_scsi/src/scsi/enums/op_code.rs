@@ -24,6 +24,7 @@ pub enum OpCode {
     Write10 = 0x2A,
     Verify10 = 0x2F,
     SynchronizeCache10 = 0x35,
+    WriteSame10 = 0x41,
     ReadTocPmaAtip = 0x43,
     ModeSelect10 = 0x55,
     Read12 = 0xA8,

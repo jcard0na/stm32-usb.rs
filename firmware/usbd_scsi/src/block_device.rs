@@ -26,6 +26,9 @@ pub trait BlockDevice {
 
     /// Write the `block` buffer to the block indicated by `lba`
     fn write_block(&mut self, lba: u32, block: &[u8]) -> Result<(), BlockDeviceError>;
+
+    /// Erase entire device
+    fn erase_device(&mut self) -> Result<(), BlockDeviceError>;
     
     /// Get the maxium valid lba (logical block address)
     fn max_lba(&self) -> u32;

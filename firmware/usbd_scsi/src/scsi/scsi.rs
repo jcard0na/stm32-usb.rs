@@ -158,9 +158,9 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 // let cache_page = CachingModePage::default();
                 let block_descriptor = BlockDescriptor::default();
 
-                let buf = self.inner.take_buffer_space(
-                    ModeParameterHeader6::BYTES + BlockDescriptor::BYTES,
-                )?;
+                let buf = self
+                    .inner
+                    .take_buffer_space(ModeParameterHeader6::BYTES + BlockDescriptor::BYTES)?;
 
                 header.pack(&mut buf[..ModeParameterHeader6::BYTES])?;
                 // cache_page.pack(&mut buf[ModeParameterHeader6::BYTES..ModeParameterHeader6::BYTES+CachingModePage::BYTES])?;
@@ -186,13 +186,13 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                     self.lba_end = r.lba + r.transfer_length - 1;
                 }
 
-                trace_scsi_fs!(
-                    "FS> Read; new: {}, lba: 0x{:X}, lba_end: 0x{:X}, done: {}",
-                    new_command,
-                    self.lba,
-                    self.lba_end,
-                    self.lba == self.lba_end
-                );
+                // trace_scsi_fs!(
+                //     "FS> Read; new: {}, lba: 0x{:X}, lba_end: 0x{:X}, done: {}",
+                //     new_command,
+                //     self.lba,
+                //     self.lba_end,
+                //     self.lba == self.lba_end
+                // );
 
                 // We only get here if the buffer is empty
                 let buf = self.inner.take_buffer_space(BD::BLOCK_BYTES)?;
@@ -215,11 +215,12 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 }
 
                 trace_scsi_fs!(
-                    "FS> Write; new: {}, lba: 0x{:X}, lba_end: 0x{:X}, done: {}",
+                    "FS> Write; new: {}, lba: 0x{:X}, lba_end: 0x{:X}, done: {}, xfer len: 0x{:X}",
                     new_command,
                     self.lba,
                     self.lba_end,
-                    self.lba == self.lba_end
+                    self.lba == self.lba_end,
+                    w.transfer_length,
                 );
 
                 let len = match self.inner.transfer_state() {
@@ -246,15 +247,48 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 }
             }
 
+            // Write given data to `number_of_blocks` blocks starting at `lba`
+            // Only supports data '0xff', lba=0 and number_of_blocs=0
+            // This will erase the entire BlockDevice
+            // sg_write_same --10 --ff --num 0 --lba 0 --xferlen 1 /dev/sdX
+            // TODO:  add support for more granular erasing (e.g. sectors)
+            Command::WriteSame(w) => {
+                trace_scsi_fs!(
+                    "FS> WriteSame; lba: 0x{:X}, number of blocks: 0x{:X}",
+                    w.lba,
+                    w.number_of_blocks,
+                );
+
+                let len = match self.inner.transfer_state() {
+                    TransferState::ReceivingDataFromHost {
+                        done: true,
+                        full: false,
+                        bytes_available: b,
+                    } => b,
+                    // TODO: Does this ever happen?
+                    _ => BD::BLOCK_BYTES,
+                };
+
+                let buf = self
+                    .inner
+                    .take_buffered_data(len, false)
+                    .expect("Buffer should have enough data");
+
+                if buf[0] == 0xff && w.lba == 0 && w.number_of_blocks == 0 {
+                    self.block_device.erase_device()?;
+                }
+                Done
+            }
+
             Command::ModeSelect(_) => {
                 defmt::error!("Mode Select not yet implemented");
                 Done
-            },
+            }
 
             Command::Format(_) => {
                 defmt::error!("Format not yet implemented");
                 Done
-            },
+            }
 
             _ => Err(Error::UnhandledOpCode)?,
         })
