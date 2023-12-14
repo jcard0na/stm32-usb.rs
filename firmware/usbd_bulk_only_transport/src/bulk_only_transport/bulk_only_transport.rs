@@ -31,7 +31,7 @@ use super::{
 const REQ_GET_MAX_LUN: u8 = 0xFE;
 const REQ_BULK_ONLY_RESET: u8 = 0xFF;
 
-const BUFFER_BYTES: usize = 512;
+const BUFFER_BYTES: usize = 4096;
 
 #[derive(Debug)]
 pub enum Error {
@@ -48,6 +48,16 @@ impl From<UsbError> for Error {
 impl From<PackingError> for Error {
     fn from(e: PackingError) -> Error {
         Error::PackingError(e)
+    }
+}
+
+impl defmt::Format for Error {
+    fn format(&self, fmt: defmt::Formatter) {
+        match self {
+            Error::UsbError(_) => defmt::write!(fmt, "UsbError"),
+            Error::PackingError(_) => defmt::write!(fmt, "PackingError"),
+            Error::DataError => defmt::write!(fmt, "DataError"),
+        }
     }
 }
 
@@ -609,7 +619,7 @@ impl<B: UsbBus> UsbClass<B> for BulkOnlyTransport<'_, B> {
         };
 
         if let Some(Err(e)) = handled_res {
-            defmt::error!("Error from ControlIn.accept: {:?}", e);
+            defmt::error!("Error from ControlIn.accept{:?}", Error::from(e));
         }
     }
 
