@@ -1,7 +1,7 @@
 use packing::Packed;
 
 /// The status of a command
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, defmt::Format)]
 pub enum CommandStatus {
     /// Ok, command completed successfully
     CommandOk = 0x00,

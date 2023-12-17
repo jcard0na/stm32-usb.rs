@@ -1,6 +1,6 @@
 use packing::Packed;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, defmt::Format)]
 pub enum ResponseCode {
     FixedSenseData = 0x70,
     DescriptorSenseData = 0x72,    

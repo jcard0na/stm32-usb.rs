@@ -9,7 +9,7 @@ use crate::scsi::enums::{
     AdditionalSenseCode,
 };
 
-#[derive(Clone, Copy, Packed)]
+#[derive(Clone, Copy, Packed, defmt::Format)]
 #[packed(big_endian, lsb0)]
 pub struct RequestSenseResponse {
     #[pkd(7, 7, 0, 0)]

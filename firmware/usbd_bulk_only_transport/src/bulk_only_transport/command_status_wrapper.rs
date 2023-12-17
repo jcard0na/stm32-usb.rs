@@ -8,7 +8,7 @@ const SIGNATURE: u32 = 0x53425355;
 /// device on the OUT endpoint. Describes the data transfer IN or OUT
 /// that should happen immediatly after this wrapper is received.
 /// Little Endian
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, defmt::Format)]
 #[packed(little_endian, lsb0)]
 pub struct CommandStatusWrapper {
     /// Signature that identifies this packet as CSW

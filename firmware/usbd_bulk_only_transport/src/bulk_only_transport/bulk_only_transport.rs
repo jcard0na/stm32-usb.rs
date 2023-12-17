@@ -62,7 +62,7 @@ impl defmt::Format for Error {
 }
 
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, defmt::Format)]
 enum State {
     /// Waiting for a command block wrapper to arrive. Throws away data until 
     /// CBW signature is found. Moves to SendingDataToHost or ReceivingDataFromHost
@@ -235,7 +235,7 @@ impl<B: UsbBus> BulkOnlyTransport<'_, B> {
                 .map_err(|_| Error::DataError);
             if cbw.is_err() {
                 let err = cbw.err().unwrap();
-                defmt::warn!("CBW unpack error: XXX"/*, err  */);
+                defmt::warn!("CBW unpack error: {:?}", err);
                 self.buffer_i = 0;
                 return Err(err);
             }
