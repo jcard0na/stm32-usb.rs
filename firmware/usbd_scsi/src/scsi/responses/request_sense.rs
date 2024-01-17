@@ -52,8 +52,8 @@ pub struct RequestSenseResponse {
     #[pkd(6, 0, 15, 17)]
     pub sense_key_specific: u32,
     
-    #[pkd(7, 0, 18, 252)]
-    pub additional_sense_data: [u8; 235],
+    #[pkd(7, 0, 18, 18)]
+    pub additional_sense_data: u8,
 }
 
 /*
@@ -70,7 +70,7 @@ impl Default for RequestSenseResponse {
             valid: true,
             additional_sense_length: Self::BYTES as u8 - 7,
             sense_key_specific_valid: true,
-            additional_sense_data: [0; 235],
+            additional_sense_data: 0,
 
             response_code: Default::default(),
             filemark: Default::default(),

@@ -129,6 +129,9 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
             // for flash based device.
             Command::PreventAllowMediumRemoval(_) => Done,
 
+            // Nothing to do here, just respond OK on start or stop
+            Command::StartStopUnit(_) => Done,
+
             // Read the capacity and block size of the device
             Command::ReadCapacity(_) => {
                 let max_lba = self.block_device.max_lba();
