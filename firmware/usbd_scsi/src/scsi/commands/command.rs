@@ -29,6 +29,8 @@ pub enum Command {
     ReadFormatCapacities(ReadFormatCapacitiesCommand),
     Verify(Verify10Command),
     SynchronizeCache(SynchronizeCache10Command),
+    ReadBuffer(ReadBuffer10Command),
+    WriteBuffer(WriteBufferCommand),
 }
 
 impl Command {
@@ -58,6 +60,8 @@ impl Command {
             OpCode::StartStopUnit => Ok(Command::StartStopUnit(checked_extract(cbw)?)),
             OpCode::Verify10 => Ok(Command::Verify(checked_extract(cbw)?)),
             OpCode::SynchronizeCache10 => Ok(Command::SynchronizeCache(checked_extract(cbw)?)),
+            OpCode::ReadBuffer10 => Ok(Command::ReadBuffer(checked_extract::<ReadBuffer10Command>(cbw)?.into())),
+            OpCode::WriteBuffer => Ok(Command::WriteBuffer(checked_extract::<WriteBufferCommand>(cbw)?.into())),
             _ => Err(Error::UnhandledOpCode),
         }
     }
@@ -70,6 +74,7 @@ where
     Error: From<<T as Packed>::Error>,
 {
     if cbw.data_length < T::BYTES as u8 {
+        defmt::info!("data length: {} BYTES: {}", cbw.data_length, T::BYTES);
         Err(Error::InsufficientDataForCommand)?;
     }
     Ok(T::parse(&cbw.data)?)
@@ -96,6 +101,8 @@ impl defmt::Format for Command {
             Command::ReadFormatCapacities(_) => defmt::write!(f,"ReadFormatCapacities"),
             Command::Verify(_) => defmt::write!(f,"Verify"),
             Command::SynchronizeCache(_) => defmt::write!(f,"SynchronizeCache"),
+            Command::ReadBuffer(_) => defmt::write!(f,"ReadBuffer"),
+            Command::WriteBuffer(_) => defmt::write!(f,"WriteBuffer"),
         }
     }
 }

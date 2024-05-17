@@ -29,4 +29,7 @@ pub enum OpCode {
     ModeSelect10 = 0x55,
     Read12 = 0xA8,
     Write12 = 0xAA,
+
+    ReadBuffer10 = 0x3C,
+    WriteBuffer = 0x3B,
 }

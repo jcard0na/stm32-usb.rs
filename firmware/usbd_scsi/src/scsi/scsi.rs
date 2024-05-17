@@ -1,3 +1,5 @@
+use core::convert::TryInto;
+
 use packing::{Error as PackingError, Packed, PackedSize};
 use uf2_block::Block;
 use usb_device::class_prelude::*;
@@ -207,6 +209,49 @@ impl<B: UsbBus, BD: BlockDevice> Scsi<'_, B, BD> {
                 } else {
                     Done
                 }
+            }
+
+            Command::ReadBuffer(r) => {
+                // defmt::info!(
+                //     "read buffer {} alloc len {}",
+                //     r.buffer_id,
+                //     r.allocation_length
+                // );
+                let data = self
+                    .block_device
+                    .read_buffer(r.buffer_id)
+                    .unwrap_or_default();
+                let rb = ReadBuffer10Response { data };
+
+                let buf = self.inner.take_buffer_space(ReadBuffer10Response::BYTES)?;
+                rb.pack(buf)?;
+                Done
+            }
+
+            Command::WriteBuffer(w) => {
+                // defmt::info!(
+                //     "write buffer {} param len {}",
+                //     w.buffer_id,
+                //     w.parameter_list_length
+                // );
+
+                let buf = self
+                    .inner
+                    .take_buffered_data(w.parameter_list_length as usize, false)
+                    .expect("Buffer should have enough data");
+
+                let data = match w.parameter_list_length {
+                    4.. => u32::from_le_bytes(buf[0..4].try_into().unwrap()),
+                    3 => return Err(Error::BlockDeviceError(BlockDeviceError::WriteError)),
+                    2 => u16::from_le_bytes(buf[0..2].try_into().unwrap()) as u32,
+                    1 => buf[0] as u32,
+                    0 => return Err(Error::BlockDeviceError(BlockDeviceError::WriteError)),
+                };
+                self.block_device
+                    .write_buffer(w.buffer_id, data)
+                    .map_err(|_| BlockDeviceError::WriteError)?;
+
+                Done
             }
 
             // Write `transfer_length` blocks from `lba`

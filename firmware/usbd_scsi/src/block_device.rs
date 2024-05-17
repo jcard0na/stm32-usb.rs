@@ -29,6 +29,12 @@ pub trait BlockDevice {
 
     /// Erase entire device
     fn erase_device(&mut self) -> Result<(), BlockDeviceError>;
+
+    /// Read the u32 value indicated by buffer id
+    fn read_buffer(&mut self, id: u8) -> Result<u32, BlockDeviceError>;
+
+    /// Write to the the u32 value indicated by buffer id
+    fn write_buffer(&mut self, id: u8, data: u32) -> Result<(), BlockDeviceError>;
     
     /// Get the maxium valid lba (logical block address)
     fn max_lba(&self) -> u32;
